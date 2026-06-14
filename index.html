@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>🍅 番茄钟</title>
+
+<!-- PWA Meta -->
+<meta name="description" content="简洁好用的番茄钟，高效管理时间">
+<meta name="theme-color" content="#e74c3c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="番茄钟">
+<link rel="manifest" href="manifest.json">
+
+<!-- Icons -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='42' fill='%23e74c3c'/><circle cx='32' cy='28' r='7' fill='white' opacity='0.5'/></svg>">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<style>
+  :root {
+    --color-focus: #e74c3c;
+    --color-focus-light: #fce4e4;
+    --color-short: #27ae60;
+    --color-short-light: #e8f8ef;
+    --color-long: #2980b9;
+    --color-long-light: #e6f0fa;
+    --bg: #f5f0eb;
+    --card: #ffffff;
+    --text: #2c3e50;
+    --text-secondary: #7f8c8d;
+    --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --radius: 20px;
+    --safe-bottom: env(safe-area-inset-bottom, 16px);
+  }
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100%;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    padding: 16px;
+    padding-bottom: var(--safe-bottom);
+  }
+  .app {
+    width: 100%;
+    max-width: 440px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    box-shadow: var(--shadow);
+  }
+  @media (min-width: 500px) {
+    .card { padding: 32px 28px; border-radius: 24px; }
+  }
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  /* Mode tabs */
+  .modes {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 24px;
+    background: #f0edf5;
+    border-radius: 14px;
+    padding: 4px;
+  }
+  .mode-btn {
+    flex: 1;
+    padding: 10px 4px;
+    border: none;
+    border-radius: 11px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+    color: var(--text-secondary);
+    transition: all 0.25s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .mode-btn .icon { font-size: 16px; }
+  .mode-btn.active {
+    background: white;
+    color: var(--text);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .mode-btn.focus.active { color: var(--color-focus); }
+  .mode-btn.short.active { color: var(--color-short); }
+  .mode-btn.long.active { color: var(--color-long); }
+  /* Timer ring */
+  .timer-container { text-align: center; padding: 0 0 20px; }
+  .timer-ring-wrap {
+    position: relative;
+    width: min(220px, 55vw);
+    height: min(220px, 55vw);
+    margin: 0 auto 18px;
+  }
+  .timer-ring-wrap svg {
+    transform: rotate(-90deg);
+    width: 100%; height: 100%;
+  }
+  .ring-bg { fill: none; stroke: #e8e4ef; stroke-width: 10; }
+  .ring-progress {
+    fill: none; stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.8s linear, stroke 0.4s;
+  }
+  @media (min-width: 500px) {
+    .timer-ring-wrap {
+      width: 240px; height: 240px;
+    }
+  }
+  .timer-text {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .timer-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+    font-weight: 500;
+  }
+  .timer-time {
+    font-size: clamp(40px, 12vw, 56px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 2px;
+  }
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+  }
+  .btn {
+    padding: 14px 32px;
+    border: none;
+    border-radius: 30px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: scale(0.95); }
+  .btn-start {
+    background: var(--text);
+    color: white;
+    min-width: 110px;
+  }
+  .btn-start:hover { background: #1a252f; }
+  .btn-start.running { background: #e67e22; }
+  .btn-reset {
+    background: #e8e4ef;
+    color: var(--text-secondary);
+  }
+  .btn-reset:hover { background: #ddd8e6; }
+  /* Stats */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .stat-item {
+    text-align: center;
+    padding: 14px 6px;
+    background: #f8f7fa;
+    border-radius: 14px;
+  }
+  .stat-value {
+    font-size: clamp(24px, 6vw, 28px);
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .stat-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+  .stat-item:nth-child(1) .stat-value { color: var(--color-focus); }
+  .stat-item:nth-child(2) .stat-value { color: var(--color-short); }
+  .stat-item:nth-child(3) .stat-value { color: var(--color-long); }
+  /* Tasks */
+  .tasks-section { margin-top: 0; }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .section-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .btn-add {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: none;
+    background: var(--text);
+    color: white;
+    font-size: 22px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .btn-add:hover { background: #1a252f; }
+  .btn-add:active { transform: scale(0.9); }
+  .task-list {
+    display: flex; flex-direction: column; gap: 8px;
+    max-height: 240px; overflow-y: auto;
+  }
+  .task-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px;
+    background: #f8f7fa;
+    border-radius: 12px;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+  }
+  .task-item.running {
+    border-left-color: var(--color-focus);
+    background: var(--color-focus-light);
+  }
+  .task-item.completed { opacity: 0.5; }
+  .task-item.completed .task-title { text-decoration: line-through; }
+  .task-info { flex: 1; min-width: 0; }
+  .task-title {
+    font-weight: 600; font-size: 14px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .task-meta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .task-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .task-btn {
+    width: 32px; height: 32px;
+    border: none; border-radius: 10px;
+    cursor: pointer; font-size: 14px;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .task-btn:active { transform: scale(0.85); }
+  .task-btn.play { background: #d5f5e3; color: var(--color-short); }
+  .task-btn.play:hover { background: #abebc6; }
+  .task-btn.play.running { background: #fdebd0; color: #e67e22; }
+  .task-btn.del { background: #fadbd8; color: #e74c3c; }
+  .task-btn.del:hover { background: #f5b7b1; }
+  /* Empty state */
+  .empty-state {
+    text-align: center; padding: 28px; color: #ccc;
+    font-size: 14px;
+  }
+  .empty-icon { font-size: 36px; margin-bottom: 6px; }
+  /* Settings */
+  .settings-section { margin-top: 0; }
+  .settings-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .setting-item label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  .setting-item input {
+    width: 100%;
+    padding: 10px 4px;
+    border: 2px solid #e8e4ef;
+    border-radius: 10px;
+    font-size: 14px;
+    text-align: center;
+    background: #f8f7fa;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  .setting-item input:focus {
+    outline: none;
+    border-color: var(--color-long);
+    background: white;
+  }
+  .btn-save {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 14px;
+    background: var(--color-long);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-save:hover { background: #2471a3; }
+  .btn-save:active { transform: scale(0.97); }
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; padding: 20px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .modal-overlay.show { opacity: 1; pointer-events: auto; }
+  .modal-box {
+    background: white;
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    width: 100%;
+    max-width: 340px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  }
+  .modal-box h3 { margin-bottom: 16px; font-size: 18px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  .form-group input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e8e4ef;
+    border-radius: 12px;
+    font-size: 15px;
+    -webkit-appearance: none;
+  }
+  .form-group input:focus { outline: none; border-color: var(--color-long); }
+  .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+  .modal-actions .btn { flex: 1; padding: 12px; font-size: 14px; }
+  .btn-cancel { background: #e8e4ef; color: var(--text-secondary); border-radius: 14px; }
+  .btn-confirm { background: var(--text); color: white; border-radius: 14px; }
+  /* Toast */
+  .toast {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: white;
+    padding: 12px 24px; border-radius: 30px;
+    font-size: 14px; font-weight: 600;
+    z-index: 200; white-space: nowrap;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(6px); }
+  /* Scrollbar */
+  .task-list::-webkit-scrollbar { width: 4px; }
+  .task-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+  /* PWA install banner */
+  .install-banner {
+    display: none;
+    background: linear-gradient(135deg, var(--color-focus), #c0392b);
+    color: white;
+    padding: 14px 18px;
+    border-radius: 14px;
+    margin-bottom: 4px;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .install-banner.show { display: flex; }
+  .install-banner .close-banner {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px;
+    opacity: 0.8;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Install banner -->
+  <div class="install-banner" id="install-banner">
+    📲 点击安装番茄钟到桌面
+    <button class="close-banner" id="close-banner">&times;</button>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Main card -->
+  <div class="card">
+    <header><h1>🍅 番茄钟</h1></header>
+
+    <div class="modes" id="mode-tabs">
+      <button class="mode-btn focus active" data-mode="focus"><span class="icon">🍅</span> 专注</button>
+      <button class="mode-btn short" data-mode="shortBreak"><span class="icon">☕</span> 短休息</button>
+      <button class="mode-btn long" data-mode="longBreak"><span class="icon">🌊</span> 长休息</button>
+    </div>
+
+    <div class="timer-container">
+      <div class="timer-ring-wrap">
+        <svg viewBox="0 0 240 240">
+          <circle class="ring-bg" cx="120" cy="120" r="108"/>
+          <circle class="ring-progress" id="ring" cx="120" cy="120" r="108"
+                  stroke-dasharray="678.584" stroke-dashoffset="0"/>
+        </svg>
+        <div class="timer-text">
+          <span class="timer-label" id="timer-label">专注时间</span>
+          <span class="timer-time" id="timer-time">25:00</span>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn btn-reset" id="btn-reset">重置</button>
+        <button class="btn btn-start" id="btn-start">开始</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat-item">
+        <div class="stat-value" id="sessions-today">0</div>
+        <div class="stat-label">今日番茄</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="total-sessions">0</div>
+        <div class="stat-label">总完成</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="focus-minutes">0</div>
+        <div class="stat-label">今天专注(分)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tasks card -->
+  <div class="card tasks-section">
+    <div class="section-header">
+      <h3>📝 待办任务</h3>
+      <button class="btn-add" id="btn-add-task" title="添加任务">+</button>
+    </div>
+    <div class="task-list" id="task-list">
+      <div class="empty-state">
+        <div class="empty-icon">📝</div>
+        暂无任务，点击 + 添加
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings card -->
+  <div class="card settings-section">
+    <div class="section-header"><h3>⚙️ 设置</h3></div>
+    <div class="settings-grid">
+      <div class="setting-item">
+        <label>专注(分)</label>
+        <input type="number" id="set-focus" value="25" min="1" max="120" inputmode="numeric">
+      </div>
+      <div class="setting-item">
+        <label>短休息(分)</label>
+        <input type="number" id="set-short" value="5" min="1" max="30" inputmode="numeric">
+      </div>
+      <div class="setting-item">
+        <label>长休息(分)</label>
+        <input type="number" id="set-long" value="15" min="1" max="60" inputmode="numeric">
+      </div>
+    </div>
+    <button class="btn-save" id="btn-save-settings">保存设置</button>
+  </div>
+</div>
+
+<!-- Add task modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <h3>添加新任务</h3>
+    <div class="form-group">
+      <input type="text" id="input-task-title" placeholder="任务名称" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>需要几个番茄？</label>
+      <input type="number" id="input-task-pomos" value="2" min="1" max="20" inputmode="numeric">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="btn-cancel-task">取消</button>
+      <button class="btn btn-confirm" id="btn-confirm-task">添加</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ======================== Pomodoro Engine ========================
+const RING_LEN = 2 * Math.PI * 108;
+
+let settings = {
+  focus: 25 * 60,
+  shortBreak: 5 * 60,
+  longBreak: 15 * 60,
+};
+
+let state = {
+  mode: 'focus',
+  timeLeft: settings.focus,
+  totalTime: settings.focus,
+  isRunning: false,
+  intervalId: null,
+  sessionsToday: 0,
+  totalSessions: 0,
+  focusMinutesToday: 0,
+};
+
+let tasks = [];
+let currentTaskId = null;
+
+// ======================== Persistence ========================
+const STORE = 'pomodoro-pwa-data';
+const DATE_KEY = 'pomodoro-pwa-date';
+
+function saveData() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify({
+      settings,
+      sessionsToday: state.sessionsToday,
+      totalSessions: state.totalSessions,
+      focusMinutesToday: state.focusMinutesToday,
+      tasks,
+    }));
+  } catch(e) {}
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORE);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (d.settings) {
+      settings = d.settings;
+      document.getElementById('set-focus').value = Math.round(settings.focus / 60);
+      document.getElementById('set-short').value = Math.round(settings.shortBreak / 60);
+      document.getElementById('set-long').value = Math.round(settings.longBreak / 60);
+    }
+    state.sessionsToday = d.sessionsToday || 0;
+    state.totalSessions = d.totalSessions || 0;
+    state.focusMinutesToday = d.focusMinutesToday || 0;
+    tasks = d.tasks || [];
+  } catch(e) {}
+}
+
+// ======================== Timer ========================
+function getModeTime(mode) { return settings[mode] || settings.focus; }
+
+function startTimer() {
+  if (state.isRunning) return;
+  state.isRunning = true;
+  state.totalTime = getModeTime(state.mode);
+  state.intervalId = setInterval(() => {
+    state.timeLeft--;
+    updateDisplay();
+    if (state.timeLeft <= 0) completeTimer();
+  }, 1000);
+  updateDisplay();
+}
+
+function pauseTimer() {
+  state.isRunning = false;
+  if (state.intervalId) { clearInterval(state.intervalId); state.intervalId = null; }
+  updateDisplay();
+}
+
+function resetTimer() {
+  pauseTimer();
+  state.timeLeft = getModeTime(state.mode);
+  state.totalTime = getModeTime(state.mode);
+  updateDisplay();
+}
+
+function completeTimer() {
+  clearInterval(state.intervalId);
+  state.intervalId = null;
+  state.isRunning = false;
+
+  const wasFocus = state.mode === 'focus';
+
+  if (wasFocus) {
+    state.sessionsToday++;
+    state.totalSessions++;
+    state.focusMinutesToday += Math.round(settings.focus / 60);
+
+    if (currentTaskId !== null) {
+      const t = tasks.find(x => x.id === currentTaskId);
+      if (t) {
+        t.completedSessions = (t.completedSessions || 0) + 1;
+        if (t.completedSessions >= t.sessions) {
+          t.completed = true;
+          currentTaskId = null;
+        }
+      }
+    }
+
+    state.mode = (state.sessionsToday % 4 === 0) ? 'longBreak' : 'shortBreak';
+  } else {
+    state.mode = 'focus';
+  }
+
+  state.timeLeft = getModeTime(state.mode);
+  state.totalTime = getModeTime(state.mode);
+
+  showToast(wasFocus ? '🎉 专注完成！休息一下~' : '⏰ 休息结束！开始新番茄~');
+  tryNotify(wasFocus ? '专注时间结束！该休息了。' : '休息结束！准备开始新的番茄。');
+  saveData();
+  updateAll();
+}
+
+function switchMode(mode) {
+  pauseTimer();
+  state.mode = mode;
+  state.timeLeft = getModeTime(mode);
+  state.totalTime = getModeTime(mode);
+  updateAll();
+}
+
+// ======================== Display ========================
+function updateDisplay() {
+  const m = Math.floor(state.timeLeft / 60);
+  const s = state.timeLeft % 60;
+  document.getElementById('timer-time').textContent =
+    `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+
+  const progress = state.timeLeft / state.totalTime;
+  const ring = document.getElementById('ring');
+  ring.style.strokeDashoffset = RING_LEN - progress * RING_LEN;
+
+  const colors = { focus: '#e74c3c', shortBreak: '#27ae60', longBreak: '#2980b9' };
+  ring.style.stroke = colors[state.mode];
+
+  const btn = document.getElementById('btn-start');
+  if (state.isRunning) {
+    btn.textContent = '暂停';
+    btn.classList.add('running');
+  } else {
+    btn.textContent = '开始';
+    btn.classList.remove('running');
+  }
+
+  const labels = { focus: '专注时间', shortBreak: '短休息', longBreak: '长休息' };
+  document.getElementById('timer-label').textContent = labels[state.mode];
+
+  const shortLabels = { focus: '专注', shortBreak: '休息', longBreak: '长休息' };
+  document.title = `${document.getElementById('timer-time').textContent} - ${shortLabels[state.mode]} - 番茄钟`;
+
+  document.getElementById('sessions-today').textContent = state.sessionsToday;
+  document.getElementById('total-sessions').textContent = state.totalSessions;
+  document.getElementById('focus-minutes').textContent = state.focusMinutesToday;
+
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === state.mode);
+  });
+}
+
+function updateAll() { updateDisplay(); renderTasks(); saveData(); }
+
+// ======================== Tasks ========================
+function renderTasks() {
+  const el = document.getElementById('task-list');
+  if (tasks.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div>暂无任务，点击 + 添加</div>';
+    return;
+  }
+  el.innerHTML = tasks.map(t => `
+    <div class="task-item ${t.completed ? 'completed' : ''} ${currentTaskId === t.id ? 'running' : ''}">
+      <span style="font-size:18px;">${t.completed ? '✅' : '🍅'}</span>
+      <div class="task-info">
+        <div class="task-title">${esc(t.title)}</div>
+        <div class="task-meta">🍅 ${t.completedSessions || 0}/${t.sessions}</div>
+      </div>
+      <div class="task-actions">
+        ${!t.completed ? `<button class="task-btn play ${currentTaskId === t.id ? 'running' : ''}"
+          onclick="window._runTask(${t.id})">${currentTaskId === t.id ? '⏸' : '▶'}</button>` : ''}
+        <button class="task-btn del" onclick="window._deleteTask(${t.id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function addTask() {
+  const title = document.getElementById('input-task-title').value.trim();
+  const sessions = parseInt(document.getElementById('input-task-pomos').value) || 2;
+  if (!title) { showToast('请输入任务名称'); return; }
+  tasks.push({ id: Date.now(), title, sessions, completedSessions: 0, completed: false });
+  closeModal(); saveData(); renderTasks();
+  showToast('✅ 任务已添加');
+}
+
+function deleteTask(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  if (currentTaskId === id) { currentTaskId = null; pauseTimer(); }
+  saveData(); renderTasks();
+}
+
+function runTask(id) {
+  if (currentTaskId === id) { currentTaskId = null; pauseTimer(); }
+  else { currentTaskId = id; if (state.mode !== 'focus') switchMode('focus'); if (!state.isRunning) startTimer(); }
+  renderTasks();
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+window._deleteTask = deleteTask;
+window._runTask = runTask;
+
+// ======================== Modal ========================
+function openModal() {
+  document.getElementById('input-task-title').value = '';
+  document.getElementById('input-task-pomos').value = '2';
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('input-task-title').focus();
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+}
+
+// ======================== Settings ========================
+function saveSettings() {
+  settings = {
+    focus: Math.max(1, parseInt(document.getElementById('set-focus').value) || 25) * 60,
+    shortBreak: Math.max(1, parseInt(document.getElementById('set-short').value) || 5) * 60,
+    longBreak: Math.max(1, parseInt(document.getElementById('set-long').value) || 15) * 60,
+  };
+  resetTimer(); saveData();
+  showToast('✅ 设置已保存');
+}
+
+// ======================== Toast & Notify ========================
+let toastT;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function tryNotify(body) {
+  if (Notification.permission === 'granted') {
+    new Notification('🍅 番茄钟', { body, icon: 'icon-192.png', vibrate: [200, 100, 200] });
+  } else if (Notification.permission === 'default') {
+    Notification.requestPermission().then(p => {
+      if (p === 'granted') new Notification('🍅 番茄钟', { body, icon: 'icon-192.png' });
+    });
+  }
+}
+
+// ======================== PWA Install ========================
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').classList.add('show');
+});
+
+document.getElementById('install-banner').addEventListener('click', async () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') showToast('✅ 安装成功！');
+    deferredPrompt = null;
+  }
+  document.getElementById('install-banner').classList.remove('show');
+});
+
+document.getElementById('close-banner').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('install-banner').classList.remove('show');
+});
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-banner').classList.remove('show');
+  showToast('🎉 番茄钟已安装到桌面！');
+});
+
+// ======================== Init ========================
+function init() {
+  loadData();
+  state.timeLeft = getModeTime(state.mode);
+  state.totalTime = getModeTime(state.mode);
+  updateAll();
+
+  // Mode tabs
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.addEventListener('click', () => switchMode(b.dataset.mode));
+  });
+
+  // Controls
+  document.getElementById('btn-start').addEventListener('click', () => {
+    state.isRunning ? pauseTimer() : startTimer();
+  });
+  document.getElementById('btn-reset').addEventListener('click', resetTimer);
+
+  // Tasks
+  document.getElementById('btn-add-task').addEventListener('click', openModal);
+  document.getElementById('modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+  document.getElementById('btn-cancel-task').addEventListener('click', closeModal);
+  document.getElementById('btn-confirm-task').addEventListener('click', addTask);
+  document.getElementById('input-task-title').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addTask();
+  });
+
+  // Settings
+  document.getElementById('btn-save-settings').addEventListener('click', saveSettings);
+
+  // Keyboard
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space') { e.preventDefault(); state.isRunning ? pauseTimer() : startTimer(); }
+    else if (e.code === 'KeyR') { resetTimer(); }
+  });
+
+  // Notification permission
+  if (Notification.permission === 'default') Notification.requestPermission();
+
+  // Reset daily stats
+  const today = new Date().toDateString();
+  if (localStorage.getItem(DATE_KEY) !== today) {
+    state.sessionsToday = 0;
+    state.focusMinutesToday = 0;
+    localStorage.setItem(DATE_KEY, today);
+    saveData(); updateAll();
+  }
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+}
+
+init();
+</script>
+</body>
+</html>
