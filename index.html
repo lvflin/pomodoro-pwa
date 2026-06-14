@@ -374,6 +374,88 @@
   /* Scrollbar */
   .task-list::-webkit-scrollbar { width: 4px; }
   .task-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+  /* Info card (date + weather) */
+  .info-card {
+    padding: 16px 20px;
+  }
+  .info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .date-block {
+    flex-shrink: 0;
+  }
+  .date-weekday {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .date-full {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.5px;
+  }
+  .date-lunar {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .date-divider {
+    width: 1px;
+    height: 48px;
+    background: #e8e4ef;
+    flex-shrink: 0;
+  }
+  .weather-block {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .weather-block:hover { opacity: 0.8; }
+  .weather-icon {
+    font-size: 36px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .weather-info {
+    min-width: 0;
+  }
+  .weather-temp {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .weather-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .weather-extra {
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 8px;
+    margin-top: 1px;
+  }
+  .weather-loading {
+    font-size: 13px;
+    color: #ccc;
+  }
+  @media (min-width: 500px) {
+    .info-card { padding: 20px 28px; }
+    .date-full { font-size: 22px; }
+    .weather-temp { font-size: 24px; }
+  }
   /* PWA install banner */
   .install-banner {
     display: none;
@@ -408,6 +490,20 @@
   <div class="install-banner" id="install-banner">
     📲 点击安装番茄钟到桌面
     <button class="close-banner" id="close-banner">&times;</button>
+  </div>
+
+  <!-- Info card (date + weather) -->
+  <div class="card info-card">
+    <div class="info-row">
+      <div class="date-block" id="date-block">
+        <div class="date-weekday" id="date-weekday">---</div>
+        <div class="date-full" id="date-full">----年-月-日</div>
+      </div>
+      <div class="date-divider"></div>
+      <div class="weather-block" id="weather-block" title="点击刷新天气">
+        <span class="weather-loading" id="weather-status">获取天气中...</span>
+      </div>
+    </div>
   </div>
 
   <!-- Toast -->
@@ -797,6 +893,109 @@ window.addEventListener('appinstalled', () => {
   showToast('🎉 番茄钟已安装到桌面！');
 });
 
+// ======================== Calendar & Weather ========================
+
+function updateCalendar() {
+  const now = new Date();
+  const weekdays = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  const d = now.getDate();
+  const wd = weekdays[now.getDay()];
+
+  document.getElementById('date-weekday').textContent = wd;
+  document.getElementById('date-full').textContent = `${y}年${m}月${d}日`;
+}
+
+// Open-Meteo: free weather API, no key required
+// Weather code → icon + description
+const WEATHER_MAP = {
+  0:  ['☀️', '晴天'],
+  1:  ['🌤️', '少云'], 2: ['⛅', '多云'], 3: ['☁️', '阴天'],
+  45: ['🌫️', '雾'], 48: ['🌫️', '雾凇'],
+  51: ['🌦️', '小雨'], 53: ['🌦️', '中雨'], 55: ['🌧️', '大雨'],
+  61: ['🌧️', '阵雨'], 63: ['🌧️', '中阵雨'], 65: ['⛈️', '大阵雨'],
+  71: ['🌨️', '小雪'], 73: ['🌨️', '中雪'], 75: ['❄️', '大雪'],
+  77: ['🌨️', '雪粒'],
+  80: ['🌦️', '阵雨'], 81: ['🌧️', '中阵雨'], 82: ['⛈️', '大阵雨'],
+  85: ['🌨️', '小阵雪'], 86: ['❄️', '大阵雪'],
+  95: ['⛈️', '雷暴'], 96: ['⛈️', '冰雹雷暴'], 99: ['⛈️', '强冰雹雷暴'],
+};
+
+let weatherCache = { lat: null, lon: null, data: null, time: 0 };
+
+function fetchWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(2)}&longitude=${lon.toFixed(2)}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto&forecast_days=1`;
+  fetch(url)
+    .then(r => r.json())
+    .then(d => {
+      const cur = d.current || {};
+      const code = cur.weather_code;
+      const w = WEATHER_MAP[code] || ['🌡️', '未知'];
+      weatherCache.data = {
+        icon: w[0], desc: w[1],
+        temp: Math.round(cur.temperature_2m),
+        humidity: cur.relative_humidity_2m,
+        wind: Math.round(cur.wind_speed_10m || 0),
+      };
+      weatherCache.time = Date.now();
+      renderWeather();
+    })
+    .catch(() => {
+      document.getElementById('weather-status').textContent = '天气不可用';
+    });
+}
+
+function renderWeather() {
+  const el = document.getElementById('weather-block');
+  if (!weatherCache.data) {
+    el.innerHTML = '<span class="weather-loading">天气不可用</span>';
+    return;
+  }
+  const w = weatherCache.data;
+  el.innerHTML = `
+    <span class="weather-icon">${w.icon}</span>
+    <div class="weather-info">
+      <div class="weather-temp">${w.temp}°C</div>
+      <div class="weather-desc">${w.desc}</div>
+      <div class="weather-extra">
+        <span>💧 ${w.humidity}%</span>
+        <span>💨 ${w.wind}km/h</span>
+      </div>
+    </div>`;
+}
+
+function requestWeather() {
+  if (weatherCache.data && Date.now() - weatherCache.time < 30 * 60 * 1000) {
+    renderWeather();
+    return;
+  }
+  document.getElementById('weather-status').textContent = '获取天气中...';
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        weatherCache.lat = pos.coords.latitude;
+        weatherCache.lon = pos.coords.longitude;
+        fetchWeather(pos.coords.latitude, pos.coords.longitude);
+      },
+      () => {
+        // Fallback: Beijing
+        fetchWeather(39.9, 116.4);
+      },
+      { timeout: 8000, maximumAge: 30 * 60 * 1000 }
+    );
+  } else {
+    fetchWeather(39.9, 116.4);
+  }
+}
+
+// Click weather to refresh
+document.getElementById('weather-block').addEventListener('click', () => {
+  weatherCache.time = 0;
+  requestWeather();
+});
+
 // ======================== Init ========================
 function init() {
   loadData();
@@ -847,6 +1046,11 @@ function init() {
     localStorage.setItem(DATE_KEY, today);
     saveData(); updateAll();
   }
+
+  // Calendar & Weather
+  updateCalendar();
+  requestWeather();
+  setInterval(updateCalendar, 60 * 1000); // refresh date every minute
 
   // Register service worker
   if ('serviceWorker' in navigator) {
