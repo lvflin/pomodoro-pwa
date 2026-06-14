@@ -1,0 +1,22 @@
+{
+  "name": "番茄钟 - Pomodoro Timer",
+  "short_name": "番茄钟",
+  "description": "简洁好用的番茄钟，专注工作，高效管理时间",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f0eb",
+  "theme_color": "#e74c3c",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
